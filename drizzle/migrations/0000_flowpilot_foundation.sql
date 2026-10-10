@@ -1,0 +1,64 @@
+CREATE TABLE public.profiles (id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE, display_name text NOT NULL DEFAULT '', timezone text NOT NULL DEFAULT 'Asia/Kolkata', permission_level text NOT NULL DEFAULT 'ask' CHECK (permission_level IN ('suggest','ask','automation')), created_at timestamptz NOT NULL DEFAULT now());
+GRANT SELECT, INSERT, UPDATE ON public.profiles TO authenticated; GRANT ALL ON public.profiles TO service_role;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY own_profiles ON public.profiles FOR ALL TO authenticated USING (auth.uid()=id) WITH CHECK (auth.uid()=id);
+CREATE FUNCTION public.create_flowpilot_profile() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$ BEGIN INSERT INTO public.profiles(id,display_name) VALUES (new.id, coalesce(new.raw_user_meta_data->>'display_name','')); RETURN new; END; $$;
+CREATE TRIGGER flowpilot_profile AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.create_flowpilot_profile();
+CREATE TABLE public.tasks (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL, title text NOT NULL, description text NOT NULL DEFAULT '', due_at timestamptz, priority text NOT NULL DEFAULT 'medium' CHECK (priority IN ('low','medium','high')), status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','completed')), category text NOT NULL DEFAULT '', source_workflow uuid, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+GRANT SELECT,INSERT,UPDATE,DELETE ON public.tasks TO authenticated; GRANT ALL ON public.tasks TO service_role;
+ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY own_tasks ON public.tasks FOR ALL TO authenticated USING (auth.uid()=user_id) WITH CHECK (auth.uid()=user_id);
+CREATE INDEX tasks_owner_due ON public.tasks(user_id,due_at);
+CREATE TABLE public.saved_entries (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL, kind text NOT NULL CHECK(kind IN ('memory','archive')), title text NOT NULL, content text NOT NULL, category text NOT NULL DEFAULT 'Notes', source text NOT NULL DEFAULT '', created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+GRANT SELECT,INSERT,UPDATE,DELETE ON public.saved_entries TO authenticated; GRANT ALL ON public.saved_entries TO service_role;
+ALTER TABLE public.saved_entries ENABLE ROW LEVEL SECURITY;
+CREATE POLICY own_entries ON public.saved_entries FOR ALL TO authenticated USING(auth.uid()=user_id) WITH CHECK(auth.uid()=user_id);
+CREATE INDEX entries_owner_kind ON public.saved_entries(user_id,kind);
+CREATE TABLE public.conversations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL, title text NOT NULL DEFAULT 'New conversation', messages jsonb NOT NULL DEFAULT '[]', created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+GRANT SELECT,INSERT,UPDATE,DELETE ON public.conversations TO authenticated; GRANT ALL ON public.conversations TO service_role;
+ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY own_conversations ON public.conversations FOR ALL TO authenticated USING(auth.uid()=user_id) WITH CHECK(auth.uid()=user_id);
+CREATE INDEX conversations_owner ON public.conversations(user_id,updated_at DESC);
+CREATE TABLE public.workflows (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL, name text NOT NULL, description text NOT NULL DEFAULT '', steps jsonb NOT NULL DEFAULT '[]', trigger_type text NOT NULL DEFAULT 'manual', status text NOT NULL DEFAULT 'approval_required' CHECK(status IN ('approval_required','running','completed','failed','paused')), approved_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+GRANT SELECT,INSERT,UPDATE,DELETE ON public.workflows TO authenticated; GRANT ALL ON public.workflows TO service_role;
+ALTER TABLE public.workflows ENABLE ROW LEVEL SECURITY;
+CREATE POLICY own_workflows ON public.workflows FOR ALL TO authenticated USING(auth.uid()=user_id) WITH CHECK(auth.uid()=user_id);
+CREATE TABLE public.activity (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL, workflow_id uuid REFERENCES public.workflows(id) ON DELETE SET NULL, action text NOT NULL, status text NOT NULL CHECK(status IN ('completed','failed','approval_required','running')), details text NOT NULL DEFAULT '', created_at timestamptz NOT NULL DEFAULT now(), completed_at timestamptz);
+GRANT SELECT ON public.activity TO authenticated; GRANT ALL ON public.activity TO service_role;
+ALTER TABLE public.activity ENABLE ROW LEVEL SECURITY;
+CREATE POLICY own_activity_read ON public.activity FOR SELECT TO authenticated USING(auth.uid()=user_id);
+CREATE INDEX activity_owner ON public.activity(user_id,created_at DESC);
+CREATE TABLE public.ai_access (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL UNIQUE, blocked boolean NOT NULL DEFAULT false, reason text NOT NULL DEFAULT '', updated_at timestamptz NOT NULL DEFAULT now());
+GRANT SELECT ON public.ai_access TO authenticated; GRANT ALL ON public.ai_access TO service_role;
+ALTER TABLE public.ai_access ENABLE ROW LEVEL SECURITY;
+CREATE POLICY own_ai_access ON public.ai_access FOR SELECT TO authenticated USING(auth.uid()=user_id);
+CREATE FUNCTION public.execute_flowpilot_workflow(workflow_id uuid, confirm boolean) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE w public.workflows; s jsonb; results jsonb := '[]'; record_id uuid;
+BEGIN
+IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
+IF confirm IS DISTINCT FROM true THEN RAISE EXCEPTION 'Explicit approval required'; END IF;
+SELECT * INTO w FROM public.workflows WHERE id=workflow_id AND user_id=auth.uid() FOR UPDATE;
+IF w.id IS NULL THEN RAISE EXCEPTION 'Workflow not found'; END IF;
+IF w.status='completed' THEN RETURN jsonb_build_object('status','completed','already_executed',true); END IF;
+IF w.status='paused' THEN RAISE EXCEPTION 'Resume this workflow before running'; END IF;
+IF jsonb_array_length(w.steps)=0 OR jsonb_array_length(w.steps)>20 THEN RAISE EXCEPTION 'Workflow must have 1 to 20 steps'; END IF;
+UPDATE public.workflows SET status='running',approved_at=now(),updated_at=now() WHERE id=w.id;
+FOR s IN SELECT value FROM jsonb_array_elements(w.steps) LOOP
+IF s->>'action' NOT IN ('create_task','save_memory','save_archive') OR s->>'action' IS NULL THEN RAISE EXCEPTION 'Unsupported action'; END IF;
+IF length(trim(coalesce(s->>'title','')))=0 OR length(s->>'title')>300 THEN RAISE EXCEPTION 'A title of up to 300 characters is required'; END IF;
+IF s->>'action'='create_task' THEN
+IF coalesce(s->>'priority','medium') NOT IN ('low','medium','high') THEN RAISE EXCEPTION 'Invalid priority'; END IF;
+INSERT INTO public.tasks(user_id,title,description,due_at,priority,category,source_workflow) VALUES(auth.uid(),s->>'title',coalesce(s->>'content',''),nullif(s->>'due_at','')::timestamptz,coalesce(s->>'priority','medium'),coalesce(s->>'category',''),w.id) RETURNING id INTO record_id;
+ELSE
+IF length(trim(coalesce(s->>'content','')))=0 THEN RAISE EXCEPTION 'Saved information cannot be empty'; END IF;
+INSERT INTO public.saved_entries(user_id,kind,title,content,category,source) VALUES(auth.uid(),CASE WHEN s->>'action'='save_memory' THEN 'memory' ELSE 'archive' END,s->>'title',s->>'content',coalesce(s->>'category','Notes'),'Workflow: '||w.name) RETURNING id INTO record_id;
+END IF;
+results:=results||jsonb_build_array(jsonb_build_object('action',s->>'action','record_id',record_id));
+INSERT INTO public.activity(user_id,workflow_id,action,status,details,completed_at) VALUES(auth.uid(),w.id,s->>'action','completed',s->>'title',now());
+END LOOP;
+UPDATE public.workflows SET status='completed',updated_at=now() WHERE id=w.id;
+RETURN jsonb_build_object('status','completed','results',results);
+END; $$;
+REVOKE ALL ON FUNCTION public.execute_flowpilot_workflow(uuid,boolean) FROM PUBLIC,anon; GRANT EXECUTE ON FUNCTION public.execute_flowpilot_workflow(uuid,boolean) TO authenticated;
+CREATE FUNCTION public.log_flowpilot_activity(action_name text, outcome text, detail text, workflow uuid DEFAULT NULL) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$ BEGIN IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF; IF workflow IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.workflows WHERE id=workflow AND user_id=auth.uid()) THEN RAISE EXCEPTION 'Workflow not found'; END IF; INSERT INTO public.activity(user_id,workflow_id,action,status,details,completed_at) VALUES(auth.uid(),workflow,action_name,outcome,detail,now()); END; $$;
+REVOKE ALL ON FUNCTION public.log_flowpilot_activity(text,text,text,uuid) FROM PUBLIC,anon; GRANT EXECUTE ON FUNCTION public.log_flowpilot_activity(text,text,text,uuid) TO authenticated;

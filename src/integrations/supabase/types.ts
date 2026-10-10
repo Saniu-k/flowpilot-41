@@ -14,13 +14,257 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      activity: {
+        Row: {
+          action: string
+          completed_at: string | null
+          created_at: string
+          details: string
+          id: string
+          status: string
+          user_id: string
+          workflow_id: string | null
+        }
+        Insert: {
+          action: string
+          completed_at?: string | null
+          created_at?: string
+          details?: string
+          id?: string
+          status: string
+          user_id: string
+          workflow_id?: string | null
+        }
+        Update: {
+          action?: string
+          completed_at?: string | null
+          created_at?: string
+          details?: string
+          id?: string
+          status?: string
+          user_id?: string
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_access: {
+        Row: {
+          blocked: boolean
+          id: string
+          reason: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          blocked?: boolean
+          id?: string
+          reason?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          blocked?: boolean
+          id?: string
+          reason?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      conversations: {
+        Row: {
+          created_at: string
+          id: string
+          messages: Json
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          messages?: Json
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          messages?: Json
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          permission_level: string
+          timezone: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string
+          id: string
+          permission_level?: string
+          timezone?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          permission_level?: string
+          timezone?: string
+        }
+        Relationships: []
+      }
+      saved_entries: {
+        Row: {
+          category: string
+          content: string
+          created_at: string
+          id: string
+          kind: string
+          source: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: string
+          content: string
+          created_at?: string
+          id?: string
+          kind: string
+          source?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          source?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tasks: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          due_at: string | null
+          id: string
+          priority: string
+          source_workflow: string | null
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string
+          due_at?: string | null
+          id?: string
+          priority?: string
+          source_workflow?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string
+          due_at?: string | null
+          id?: string
+          priority?: string
+          source_workflow?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      workflows: {
+        Row: {
+          approved_at: string | null
+          created_at: string
+          description: string
+          id: string
+          name: string
+          status: string
+          steps: Json
+          trigger_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          name: string
+          status?: string
+          steps?: Json
+          trigger_type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          name?: string
+          status?: string
+          steps?: Json
+          trigger_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      execute_flowpilot_workflow: {
+        Args: { confirm: boolean; workflow_id: string }
+        Returns: Json
+      }
+      log_flowpilot_activity: {
+        Args: {
+          action_name: string
+          detail: string
+          outcome: string
+          workflow?: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
