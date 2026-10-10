@@ -5,7 +5,7 @@ import { ChatPage } from "@/components/flowpilot/chat";
 import { workspaceQuery, conversationQuery, pageHead } from "@/lib/flowpilot/queries";
 export const Route = createFileRoute("/_authenticated/chat/$threadId")({
   head: () =>
-    pageHead("Conversation", "A private saved conversation with your FlowPilot assistant."),
+    pageHead("Conversation", "A private saved conversation with your PixelMirror assistant."),
   loader: async ({ context, params }) => {
     await Promise.all([
       context.queryClient.ensureQueryData(workspaceQuery()),

@@ -115,7 +115,7 @@ export function Memory() {
               search
                 ? "Try a different search."
                 : kind === "memory"
-                  ? "Save a preference, project, or important fact you want FlowPilot to remember."
+                  ? "Save a preference, project, or important fact you want PixelMirror to remember."
                   : "Keep selected notes, reference information and approved summaries here."
             }
             action={<AddButton label="Save information" onClick={() => setEditor({})} />}

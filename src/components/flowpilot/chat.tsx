@@ -30,7 +30,7 @@ import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Shell } from "./shell";
 import { Heading } from "./common";
 import { newConversation, deleteRecord, type Workspace } from "@/lib/flowpilot/data.functions";
-import logo from "@/assets/flowpilot-mark.png";
+import logo from "@/assets/pixelmirror-mark.png";
 import { toast } from "sonner";
 export function ChatPage({
   threadId,
@@ -165,7 +165,7 @@ function ChatWindow({
     <div className="chat-window">
       <div className="chat-header">
         <img src={logo} width={23} height={27} alt="" />
-        FlowPilot
+        PixelMirror
         <span className="ml-auto chip">
           <ShieldCheck size={12} />
           Approval-first
@@ -175,7 +175,7 @@ function ChatWindow({
         <ConversationContent>
           {messages.length === 0 ? (
             <div className="chat-empty">
-              <img src={logo} width={56} height={64} alt="FlowPilot AI" />
+              <img src={logo} width={56} height={64} alt="PixelMirror AI" />
               <h2>What's on your mind?</h2>
               <p>Let's turn it into a clear next step.</p>
               <div className="quick-actions">
@@ -246,7 +246,7 @@ function ChatWindow({
               </Message>
             ))
           )}
-          {status === "submitted" && <Shimmer>FlowPilot is thinking…</Shimmer>}
+          {status === "submitted" && <Shimmer>PixelMirror is thinking…</Shimmer>}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
@@ -267,14 +267,14 @@ function ChatWindow({
           <PromptInputTextarea
             ref={textarea}
             autoFocus
-            placeholder="What would you like FlowPilot to do?"
+            placeholder="What would you like PixelMirror to do?"
             value={text}
             onChange={(e) => setText(e.target.value)}
           />
           <PromptInputFooter>
             <span className="text-[10px] text-muted-foreground flex items-center gap-1.5">
               <ShieldCheck size={11} />
-              You approve. FlowPilot acts.
+              You approve. PixelMirror acts.
             </span>
             <PromptInputSubmit status={status} onStop={stop} disabled={!busy && !text.trim()}>
               {!busy && <ArrowUp size={16} />}

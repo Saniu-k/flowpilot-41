@@ -8,7 +8,7 @@ import { Brand } from "@/components/flowpilot/shell";
 import { useIdentity } from "@/components/flowpilot/auth-context";
 import { pageHead } from "@/lib/flowpilot/queries";
 export const Route = createFileRoute("/auth")({
-  head: () => pageHead("Sign in", "Sign in to your private FlowPilot personal workspace."),
+  head: () => pageHead("Sign in", "Sign in to your private PixelMirror personal workspace."),
   component: Auth,
 });
 function Auth() {
@@ -30,7 +30,7 @@ function Auth() {
         <h1>{signup ? "Your personal workspace" : "Welcome back"}</h1>
         <p>
           {signup
-            ? "Create an account to start working with FlowPilot."
+            ? "Create an account to start working with PixelMirror."
             : "A clearer day starts here."}
         </p>
         <Button

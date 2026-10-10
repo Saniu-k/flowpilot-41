@@ -20,7 +20,7 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import logo from "@/assets/flowpilot-mark.png";
+import logo from "@/assets/pixelmirror-mark.png";
 import { useIdentity } from "./auth-context";
 import { supabase } from "@/integrations/supabase/client";
 const nav = [
@@ -36,8 +36,8 @@ const nav = [
 export function Brand() {
   return (
     <div className="brand">
-      <img src={logo} width={32} height={36} alt="FlowPilot" />
-      <span>FlowPilot</span>
+      <img src={logo} width={32} height={36} alt="PixelMirror" />
+      <span>PixelMirror</span>
       <small>AI</small>
     </div>
   );
