@@ -27,7 +27,7 @@ import { TaskEditor } from "./task-editor";
 import { useIdentity } from "./auth-context";
 import { workspaceQuery } from "@/lib/flowpilot/queries";
 import { newConversation, type Workspace } from "@/lib/flowpilot/data.functions";
-import logo from "@/assets/flowpilot-mark.png";
+import logo from "@/assets/pixelmirror-mark.png";
 export function LiveDashboard() {
   const { data } = useSuspenseQuery(workspaceQuery());
   return <Dashboard data={data} />;
@@ -95,21 +95,21 @@ export function Dashboard({ data }: { data?: Workspace }) {
           }}
         >
           <textarea
-            aria-label="Ask FlowPilot"
-            placeholder="Ask FlowPilot to plan, organize, or take something off your plate…"
+            aria-label="Ask PixelMirror"
+            placeholder="Ask PixelMirror to plan, organize, or take something off your plate…"
             value={command}
             onChange={(e) => setCommand(e.target.value)}
           />
           <div className="command-footer">
             <span>
-              <ShieldCheck size={12} /> You approve. FlowPilot acts.
+              <ShieldCheck size={12} /> You approve. PixelMirror acts.
             </span>
             <Button
               size="icon-sm"
               type="submit"
               disabled={busy}
-              aria-label="Send to FlowPilot"
-              title="Send to FlowPilot"
+              aria-label="Send to PixelMirror"
+              title="Send to PixelMirror"
             >
               <ArrowUp size={17} />
             </Button>

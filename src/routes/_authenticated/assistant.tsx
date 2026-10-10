@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { newConversation } from "@/lib/flowpilot/data.functions";
 import { workspaceQuery, pageHead } from "@/lib/flowpilot/queries";
 export const Route = createFileRoute("/_authenticated/assistant")({
-  head: () => pageHead("AI Assistant", "Your private saved conversations with FlowPilot AI."),
+  head: () => pageHead("AI Assistant", "Your private saved conversations with PixelMirror AI."),
   loader: ({ context }) => context.queryClient.ensureQueryData(workspaceQuery()),
   component: Assistant,
 });

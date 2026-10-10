@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { pageHead } from "@/lib/flowpilot/queries";
 export const Route = createFileRoute("/reset-password")({
-  head: () => pageHead("Reset password", "Set a new password for your FlowPilot account."),
+  head: () => pageHead("Reset password", "Set a new password for your PixelMirror account."),
   component: Reset,
 });
 function Reset() {

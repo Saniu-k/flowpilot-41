@@ -175,7 +175,7 @@ export function Workflows() {
           <Empty
             icon={Workflow}
             title="Make a plan for the busywork"
-            text="Create a workflow with tasks and saved information, or ask FlowPilot to propose one."
+            text="Create a workflow with tasks and saved information, or ask PixelMirror to propose one."
             action={<AddButton label="Create workflow" onClick={() => setEditor({})} />}
           />
         </div>

@@ -1,4 +1,6 @@
-# FlowPilot foundation
+# PixelMirror foundation
+
+- [x] Rename the app PixelMirror and replace its logo and browser icon
 
 - [x] Authentication and private persisted records
 - [x] Dashboard, tasks, memory/archive, activity and settings

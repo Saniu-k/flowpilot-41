@@ -156,7 +156,7 @@ export function Calendar() {
       <div className="panel">
         <div className="panel-toolbar">
           <strong>Upcoming task due dates</strong>
-          <span>Internal FlowPilot tasks</span>
+          <span>Internal PixelMirror tasks</span>
         </div>
         {due.length ? (
           due.map((t) => (
@@ -208,7 +208,7 @@ export function Settings() {
   const qc = useQueryClient();
   return (
     <Shell title="Settings">
-      <Heading title="Settings" subtitle="Make FlowPilot work your way." />
+      <Heading title="Settings" subtitle="Make PixelMirror work your way." />
       <form
         className="settings-form form-grid"
         onSubmit={async (e) => {

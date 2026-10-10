@@ -81,12 +81,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "FlowPilot AI" },
+      { title: "PixelMirror AI" },
       {
         name: "description",
         content: "Your private AI personal employee for tasks, memories and approved workflows.",
       },
-      { property: "og:title", content: "FlowPilot AI" },
+      { property: "og:title", content: "PixelMirror AI" },
       {
         property: "og:description",
         content: "Your private AI personal employee for tasks, memories and approved workflows.",
@@ -99,7 +99,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.png", type: "image/png" },
+      { rel: "icon", href: "/pixelmirror-favicon.png", type: "image/png" },
       {
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap",

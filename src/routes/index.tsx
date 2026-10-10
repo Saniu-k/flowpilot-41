@@ -7,7 +7,7 @@ export const Route = createFileRoute("/")({
   head: () =>
     pageHead(
       "Your day, in focus",
-      "Plan your day, manage tasks and review approved workflows in your personal FlowPilot workspace.",
+      "Plan your day, manage tasks and review approved workflows in your personal PixelMirror workspace.",
     ),
   component: Index,
 });
