@@ -8,6 +8,13 @@
       "when": 1791616074623,
       "tag": "0000_flowpilot_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791616518730,
+      "tag": "0001_restrict_profile_trigger_execution",
+      "breakpoints": true
     }
   ]
 }
