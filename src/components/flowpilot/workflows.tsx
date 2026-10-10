@@ -1,0 +1,344 @@
+import { useState } from "react";
+import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { Workflow, Play, Pause, Pencil, Trash2, Plus, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
+import { Shell } from "./shell";
+import { Heading, Empty, AddButton } from "./common";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import { workspaceQuery } from "@/lib/flowpilot/queries";
+import {
+  saveWorkflow,
+  runWorkflow,
+  pauseWorkflow,
+  deleteRecord,
+  type Workspace,
+} from "@/lib/flowpilot/data.functions";
+import { planSchema, type stepSchema } from "@/lib/flowpilot/validation";
+import type { z } from "zod";
+type Step = z.infer<typeof stepSchema>;
+const newStep = (): Step => ({
+  action: "create_task",
+  title: "",
+  content: "",
+  due_at: null,
+  priority: "medium",
+  category: "Personal",
+});
+export function Workflows() {
+  const { data } = useSuspenseQuery(workspaceQuery());
+  const [editor, setEditor] = useState<{ row?: Workspace["workflows"][number] | undefined } | null>(
+    null,
+  );
+  const [busy, setBusy] = useState("");
+  const qc = useQueryClient();
+  const run = useServerFn(runWorkflow),
+    pause = useServerFn(pauseWorkflow),
+    remove = useServerFn(deleteRecord);
+  async function action(id: string, fn: () => Promise<unknown>) {
+    setBusy(id);
+    try {
+      await fn();
+      await qc.invalidateQueries({ queryKey: ["workspace"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Workflow failed");
+    } finally {
+      setBusy("");
+    }
+  }
+  return (
+    <Shell title="Workflows">
+      <Heading
+        title="Workflows"
+        subtitle="A clear plan. Your approval. Work that actually gets done."
+        action={<AddButton label="Create workflow" onClick={() => setEditor({})} />}
+      />
+      {data.workflows.length ? (
+        data.workflows.map((w) => {
+          const parsed = planSchema.safeParse({
+            name: w.name,
+            description: w.description,
+            steps: w.steps,
+          });
+          return (
+            <article className="workflow-card" key={w.id}>
+              <div className="flex justify-between items-start gap-3">
+                <div>
+                  <h3>{w.name}</h3>
+                  <p>{w.description}</p>
+                </div>
+                <span className={`chip status-${w.status}`}>{w.status.replace("_", " ")}</span>
+              </div>
+              <div className="mt-4">
+                {parsed.success ? (
+                  parsed.data.steps.map((s, i) => (
+                    <div className="workflow-step" key={i}>
+                      <span className="step-number">{i + 1}</span>
+                      <div>
+                        <strong>
+                          {s.action === "create_task"
+                            ? "Create task"
+                            : s.action === "save_memory"
+                              ? "Save memory"
+                              : "Save archive entry"}
+                          : {s.title}
+                        </strong>
+                        {s.content && <p>{s.content}</p>}
+                        {s.due_at && <p>Due: {new Date(s.due_at).toLocaleString()}</p>}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p>Invalid workflow. Edit the steps before running.</p>
+                )}
+              </div>
+              <div className="workflow-actions">
+                <span className="chip">
+                  <ShieldCheck size={12} />
+                  Manual · approval required
+                </span>
+                {w.status !== "completed" && (
+                  <>
+                    <Button
+                      size="sm"
+                      disabled={busy === w.id || w.status === "paused" || !parsed.success}
+                      onClick={() => {
+                        if (
+                          !window.confirm(
+                            `Approve and execute all ${parsed.success ? parsed.data.steps.length : 0} steps in "${w.name}"?`,
+                          )
+                        )
+                          return;
+                        action(w.id, async () => {
+                          await run({ data: { id: w.id, confirm: true } });
+                          toast.success("Workflow completed");
+                        });
+                      }}
+                    >
+                      <Play />
+                      Approve & run
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy === w.id}
+                      onClick={() =>
+                        action(w.id, () =>
+                          pause({ data: { id: w.id, paused: w.status !== "paused" } }),
+                        )
+                      }
+                    >
+                      {w.status === "paused" ? <Play /> : <Pause />}
+                      {w.status === "paused" ? "Resume" : "Pause"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      title="Edit workflow"
+                      aria-label={`Edit ${w.name}`}
+                      onClick={() => setEditor({ row: w })}
+                    >
+                      <Pencil />
+                    </Button>
+                  </>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Delete ${w.name}`}
+                  title="Delete workflow"
+                  onClick={() => {
+                    if (window.confirm(`Delete "${w.name}"?`))
+                      action(w.id, () =>
+                        remove({ data: { table: "workflows", id: w.id, confirm: true } }),
+                      );
+                  }}
+                >
+                  <Trash2 />
+                </Button>
+              </div>
+            </article>
+          );
+        })
+      ) : (
+        <div className="panel">
+          <Empty
+            icon={Workflow}
+            title="Make a plan for the busywork"
+            text="Create a workflow with tasks and saved information, or ask FlowPilot to propose one."
+            action={<AddButton label="Create workflow" onClick={() => setEditor({})} />}
+          />
+        </div>
+      )}
+      {editor && <WorkflowEditor row={editor.row} onClose={() => setEditor(null)} />}
+    </Shell>
+  );
+}
+function WorkflowEditor({
+  row,
+  onClose,
+}: {
+  row?: Workspace["workflows"][number] | undefined;
+  onClose: () => void;
+}) {
+  const p = planSchema.safeParse({
+    name: row?.name,
+    description: row?.description,
+    steps: row?.steps,
+  });
+  const [name, setName] = useState(row?.name ?? "");
+  const [description, setDescription] = useState(row?.description ?? "");
+  const [steps, setSteps] = useState<Step[]>(p.success ? p.data.steps : [newStep()]);
+  const [busy, setBusy] = useState(false);
+  const save = useServerFn(saveWorkflow);
+  const qc = useQueryClient();
+  function update(i: number, values: Partial<Step>) {
+    setSteps((s) => s.map((x, j) => (j === i ? { ...x, ...values } : x)));
+  }
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{row ? "Edit workflow" : "New workflow"}</DialogTitle>
+        </DialogHeader>
+        <form
+          className="form-grid"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setBusy(true);
+            try {
+              await save({ data: { id: row?.id, plan: { name, description, steps } } });
+              await qc.invalidateQueries({ queryKey: ["workspace"] });
+              toast.success("Workflow saved for approval");
+              onClose();
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : "Could not save workflow");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <label>
+            Name
+            <Input autoFocus required value={name} onChange={(e) => setName(e.target.value)} />
+          </label>
+          <label>
+            Description
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
+          </label>
+          {steps.map((s, i) => (
+            <div key={i} className="form-grid border-t border-border pt-4">
+              <div className="flex items-center justify-between">
+                <strong className="text-xs">Step {i + 1}</strong>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  title="Remove step"
+                  aria-label={`Remove step ${i + 1}`}
+                  disabled={steps.length === 1}
+                  onClick={() => setSteps(steps.filter((_, j) => j !== i))}
+                >
+                  <Trash2 />
+                </Button>
+              </div>
+              <Select
+                value={s.action}
+                onValueChange={(v) => update(i, { action: v as Step["action"] })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="create_task">Create task</SelectItem>
+                  <SelectItem value="save_memory">Save memory</SelectItem>
+                  <SelectItem value="save_archive">Save archive entry</SelectItem>
+                </SelectContent>
+              </Select>
+              <label>
+                Title
+                <Input
+                  required
+                  maxLength={300}
+                  value={s.title}
+                  onChange={(e) => update(i, { title: e.target.value })}
+                />
+              </label>
+              <label>
+                {s.action === "create_task" ? "Description" : "Information"}
+                <Textarea
+                  required={s.action !== "create_task"}
+                  value={s.content}
+                  onChange={(e) => update(i, { content: e.target.value })}
+                />
+              </label>
+              {s.action === "create_task" && (
+                <>
+                  <label>
+                    Priority
+                    <Select
+                      value={s.priority}
+                      onValueChange={(v) => update(i, { priority: v as Step["priority"] })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {["low", "medium", "high"].map((v) => (
+                          <SelectItem key={v} value={v}>
+                            {v}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </label>
+                  <label>
+                    Due date & time
+                    <Input
+                      type="datetime-local"
+                      onChange={(e) =>
+                        update(i, {
+                          due_at: e.target.value ? new Date(e.target.value).toISOString() : null,
+                        })
+                      }
+                    />
+                  </label>
+                </>
+              )}
+              <label>
+                Category
+                <Input
+                  value={s.category}
+                  onChange={(e) => update(i, { category: e.target.value })}
+                />
+              </label>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            disabled={steps.length >= 20}
+            onClick={() => setSteps([...steps, newStep()])}
+          >
+            <Plus />
+            Add step
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Saving does not execute this workflow. Review and approve before running.
+          </p>
+          <Button disabled={busy}>{busy ? "Saving…" : "Save for review"}</Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

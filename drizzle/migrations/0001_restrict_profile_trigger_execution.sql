@@ -1,0 +1,1 @@
+REVOKE ALL ON FUNCTION public.create_flowpilot_profile() FROM PUBLIC,anon,authenticated;
