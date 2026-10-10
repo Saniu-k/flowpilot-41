@@ -1,10 +1,159 @@
-import { useState,type ReactNode } from 'react';
-import { Link,useLocation } from '@tanstack/react-router';
-import { LayoutDashboard,MessagesSquare,ListTodo,Workflow,BookOpen,CalendarDays,Plug,History,Settings,ChevronDown,ChevronsUpDown,Search,Bell,Menu,ShieldCheck,LogOut,ArrowUpRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import logo from '@/assets/flowpilot-mark.png';
-import { useIdentity } from './auth-context';
-import { supabase } from '@/integrations/supabase/client';
-const nav=[{to:'/',label:'Dashboard',icon:LayoutDashboard},{to:'/assistant',label:'AI Assistant',icon:MessagesSquare},{to:'/tasks',label:'Tasks',icon:ListTodo},{to:'/workflows',label:'Workflows',icon:Workflow},{to:'/memory',label:'Memory & Archive',icon:BookOpen},{to:'/calendar',label:'Calendar & Reminders',icon:CalendarDays},{to:'/integrations',label:'Integrations',icon:Plug},{to:'/activity',label:'Activity History',icon:History}] as const;
-export function Brand(){return <div className="brand"><img src={logo} width={32} height={36} alt="FlowPilot"/><span>FlowPilot</span><small>AI</small></div>;}
-export function Shell({children,title}:{children:ReactNode;title:string}){const [menu,setMenu]=useState(false);const path=useLocation({select:l=>l.pathname});const {user}=useIdentity();const name=user?.user_metadata?.display_name||user?.user_metadata?.full_name||'Your workspace';return <div className="app-shell"><aside className={`sidebar ${menu?'open':''}`}><Link to="/" onClick={()=>setMenu(false)}><Brand/></Link><div className="workspace-label"><span className="initial">P</span><span className="flex-1 text-xs">Personal workspace</span><ChevronsUpDown size={13} className="text-muted-foreground"/></div><div className="nav-label">WORKSPACE</div><nav>{nav.map(n=><Link key={n.to} to={n.to} onClick={()=>setMenu(false)} className={`nav-link ${(path===n.to||(n.to==='/assistant'&&path.startsWith('/chat/')))?'active':''}`}><n.icon/><span>{n.label}</span>{n.to==='/assistant'&&<span className="count">AI</span>}</Link>)}</nav><div className="sidebar-bottom"><Link to="/settings" className={`nav-link ${path==='/settings'?'active':''}`}><Settings/>Settings</Link><div className="safety-note"><ShieldCheck size={16}/><div><strong>You're always in control</strong><br/>Consequential actions need your approval.</div></div><div className="account"><div className="avatar">{user?String(name).slice(0,2).toUpperCase():'YO'}</div><div className="flex-1 min-w-0"><p className="truncate">{name}</p><small>{user?'Personal account':'Not signed in'}</small></div>{user?<Button variant="ghost" size="icon-sm" aria-label="Sign out" title="Sign out" onClick={()=>supabase.auth.signOut()}><LogOut/></Button>:<Button variant="ghost" size="icon-sm" asChild title="Sign in"><Link to="/auth" aria-label="Sign in"><ArrowUpRight/></Link></Button>}</div></div></aside><main className="main-area"><header className="topbar"><div className="breadcrumb"><Button variant="ghost" size="icon-sm" className="mobile-menu" aria-label="Toggle menu" onClick={()=>setMenu(!menu)}><Menu/></Button><span>Workspace</span><span>/</span><strong>{title}</strong></div><div className="top-actions"><Link to="/tasks" className="top-search"><Search size={15}/><span>Search your workspace</span></Link><span className="chip"><span className="live-dot"/>Your personal workspace</span><Button variant="ghost" size="icon-sm" asChild title="Pending approvals"><Link to="/workflows" aria-label="Pending approvals"><Bell size={18}/></Link></Button><Link to={user?'/settings':'/auth'} className="avatar top-avatar" aria-label={user?'Account settings':'Sign in'}>{user?String(name).slice(0,1).toUpperCase():'Y'}</Link></div></header><div className="content">{children}</div></main></div>;}
+import { useState, type ReactNode } from "react";
+import { Link, useLocation } from "@tanstack/react-router";
+import {
+  LayoutDashboard,
+  MessagesSquare,
+  ListTodo,
+  Workflow,
+  BookOpen,
+  CalendarDays,
+  Plug,
+  History,
+  Settings,
+  ChevronDown,
+  ChevronsUpDown,
+  Search,
+  Bell,
+  Menu,
+  ShieldCheck,
+  LogOut,
+  ArrowUpRight,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import logo from "@/assets/flowpilot-mark.png";
+import { useIdentity } from "./auth-context";
+import { supabase } from "@/integrations/supabase/client";
+const nav = [
+  { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/assistant", label: "AI Assistant", icon: MessagesSquare },
+  { to: "/tasks", label: "Tasks", icon: ListTodo },
+  { to: "/workflows", label: "Workflows", icon: Workflow },
+  { to: "/memory", label: "Memory & Archive", icon: BookOpen },
+  { to: "/calendar", label: "Calendar & Reminders", icon: CalendarDays },
+  { to: "/integrations", label: "Integrations", icon: Plug },
+  { to: "/activity", label: "Activity History", icon: History },
+] as const;
+export function Brand() {
+  return (
+    <div className="brand">
+      <img src={logo} width={32} height={36} alt="FlowPilot" />
+      <span>FlowPilot</span>
+      <small>AI</small>
+    </div>
+  );
+}
+export function Shell({ children, title }: { children: ReactNode; title: string }) {
+  const [menu, setMenu] = useState(false);
+  const path = useLocation({ select: (l) => l.pathname });
+  const { user } = useIdentity();
+  const name =
+    user?.user_metadata?.["display_name"] || user?.user_metadata?.["full_name"] || "Your workspace";
+  return (
+    <div className="app-shell">
+      <aside className={`sidebar ${menu ? "open" : ""}`}>
+        <Link to="/" onClick={() => setMenu(false)}>
+          <Brand />
+        </Link>
+        <div className="workspace-label">
+          <span className="initial">P</span>
+          <span className="flex-1 text-xs">Personal workspace</span>
+          <ChevronsUpDown size={13} className="text-muted-foreground" />
+        </div>
+        <div className="nav-label">WORKSPACE</div>
+        <nav>
+          {nav.map((n) => (
+            <Link
+              key={n.to}
+              to={n.to}
+              onClick={() => setMenu(false)}
+              className={`nav-link ${path === n.to || (n.to === "/assistant" && path.startsWith("/chat/")) ? "active" : ""}`}
+            >
+              <n.icon />
+              <span>{n.label}</span>
+              {n.to === "/assistant" && <span className="count">AI</span>}
+            </Link>
+          ))}
+        </nav>
+        <div className="sidebar-bottom">
+          <Link to="/settings" className={`nav-link ${path === "/settings" ? "active" : ""}`}>
+            <Settings />
+            Settings
+          </Link>
+          <div className="safety-note">
+            <ShieldCheck size={16} />
+            <div>
+              <strong>You're always in control</strong>
+              <br />
+              Consequential actions need your approval.
+            </div>
+          </div>
+          <div className="account">
+            <div className="avatar">{user ? String(name).slice(0, 2).toUpperCase() : "YO"}</div>
+            <div className="flex-1 min-w-0">
+              <p className="truncate">{name}</p>
+              <small>{user ? "Personal account" : "Not signed in"}</small>
+            </div>
+            {user ? (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Sign out"
+                title="Sign out"
+                onClick={() => supabase.auth.signOut()}
+              >
+                <LogOut />
+              </Button>
+            ) : (
+              <Button variant="ghost" size="icon-sm" asChild title="Sign in">
+                <Link to="/auth" aria-label="Sign in">
+                  <ArrowUpRight />
+                </Link>
+              </Button>
+            )}
+          </div>
+        </div>
+      </aside>
+      <main className="main-area">
+        <header className="topbar">
+          <div className="breadcrumb">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="mobile-menu"
+              aria-label="Toggle menu"
+              onClick={() => setMenu(!menu)}
+            >
+              <Menu />
+            </Button>
+            <span>Workspace</span>
+            <span>/</span>
+            <strong>{title}</strong>
+          </div>
+          <div className="top-actions">
+            <Link to="/tasks" className="top-search">
+              <Search size={15} />
+              <span>Search your workspace</span>
+            </Link>
+            <span className="chip">
+              <span className="live-dot" />
+              Your personal workspace
+            </span>
+            <Button variant="ghost" size="icon-sm" asChild title="Pending approvals">
+              <Link to="/workflows" aria-label="Pending approvals">
+                <Bell size={18} />
+              </Link>
+            </Button>
+            <Link
+              to={user ? "/settings" : "/auth"}
+              className="avatar top-avatar"
+              aria-label={user ? "Account settings" : "Sign in"}
+            >
+              {user ? String(name).slice(0, 1).toUpperCase() : "Y"}
+            </Link>
+          </div>
+        </header>
+        <div className="content">{children}</div>
+      </main>
+    </div>
+  );
+}

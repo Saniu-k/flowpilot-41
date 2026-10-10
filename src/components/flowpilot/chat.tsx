@@ -1,21 +1,287 @@
-import { useEffect,useRef,useState } from 'react';
-import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport,isToolUIPart,type UIMessage } from 'ai';
-import { useServerFn } from '@tanstack/react-start';
-import { useQueryClient } from '@tanstack/react-query';
-import { Link,useNavigate } from '@tanstack/react-router';
-import { Plus,Trash2,ShieldCheck,ArrowUp } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Conversation,ConversationContent,ConversationScrollButton } from '@/components/ai-elements/conversation';
-import { Message,MessageContent,MessageResponse } from '@/components/ai-elements/message';
-import { PromptInput,PromptInputTextarea,PromptInputFooter,PromptInputSubmit } from '@/components/ai-elements/prompt-input';
-import { Tool,ToolHeader,ToolContent,ToolInput,ToolOutput } from '@/components/ai-elements/tool';
-import { Shimmer } from '@/components/ai-elements/shimmer';
-import { Shell } from './shell';
-import { Heading } from './common';
-import { newConversation,deleteRecord,type Workspace } from '@/lib/flowpilot/data.functions';
-import logo from '@/assets/flowpilot-mark.png';
-import { toast } from 'sonner';
-export function ChatPage({threadId,messages,workspace}:{threadId:string;messages:UIMessage[];workspace:Workspace}){const create=useServerFn(newConversation),remove=useServerFn(deleteRecord);const nav=useNavigate();const qc=useQueryClient();return <Shell title="AI Assistant"><Heading title="Your AI assistant" subtitle="One place to think it through and get things moving."/><div className="chat-layout"><aside className="thread-list"><Button variant="outline" size="sm" className="w-full" onClick={async()=>{try{const r=await create();await qc.invalidateQueries({queryKey:['workspace']});nav({to:'/chat/$threadId',params:{threadId:r.id}});}catch(e){toast.error(e instanceof Error?e.message:'Could not create conversation');}}}><Plus/>New conversation</Button><div>{workspace.conversations.map(t=><div key={t.id} className={`thread-row ${t.id===threadId?'active':''}`}><Link to="/chat/$threadId" params={{threadId:t.id}} title={t.title}>{t.title}</Link><Button variant="ghost" size="icon-xs" title="Delete conversation" aria-label={`Delete ${t.title}`} onClick={async()=>{if(!window.confirm(`Delete "${t.title}" and its history?`))return;try{await remove({data:{table:'conversations',id:t.id,confirm:true}});await qc.invalidateQueries({queryKey:['workspace']});if(t.id===threadId)nav({to:'/assistant'});}catch(e){toast.error(e instanceof Error?e.message:'Could not delete conversation');}}}><Trash2 size={12}/></Button></div>)}</div></aside><ChatWindow key={threadId} threadId={threadId} initialMessages={messages}/></div></Shell>;}
-function ChatWindow({threadId,initialMessages}:{threadId:string;initialMessages:UIMessage[]}){const qc=useQueryClient();const [text,setText]=useState('');const textarea=useRef<HTMLTextAreaElement>(null);const started=useRef(false);const [transport]=useState(()=>new DefaultChatTransport({api:'/api/chat',body:{conversationId:threadId},headers:async()=>{const {data}=await supabase.auth.getSession();return data.session?{Authorization:`Bearer ${data.session.access_token}`}:{Authorization:''};},fetch:async(input,init)=>{const r=await fetch(input,init);if(!r.ok){const body=await r.json().catch(()=>null);throw new Error(body?.error||body?.message||`Request failed (${r.status})`);}return r;}}));const {messages,sendMessage,status,stop,error}=useChat({id:threadId,messages:initialMessages,transport,onFinish:()=>{qc.invalidateQueries({queryKey:['workspace']});qc.invalidateQueries({queryKey:['conversation',threadId]});textarea.current?.focus();},onError:()=>textarea.current?.focus()});const busy=status==='submitted'||status==='streaming';useEffect(()=>{textarea.current?.focus();if(started.current)return;started.current=true;const key=`flowpilot-prompt-${threadId}`;const prompt=sessionStorage.getItem(key);if(prompt&&initialMessages.length===0){sessionStorage.removeItem(key);sendMessage({text:prompt});}},[threadId,sendMessage,initialMessages.length]);useEffect(()=>{if(!busy)textarea.current?.focus();},[busy]);return <div className="chat-window"><div className="chat-header"><img src={logo} width={23} height={27} alt=""/>FlowPilot<span className="ml-auto chip"><ShieldCheck size={12}/>Approval-first</span></div><Conversation className="chat-transcript"><ConversationContent>{messages.length===0?<div className="chat-empty"><img src={logo} width={56} height={64} alt="FlowPilot AI"/><h2>What's on your mind?</h2><p>Let's turn it into a clear next step.</p><div className="quick-actions"><Button variant="outline" onClick={()=>{setText('Help me plan my day using my saved tasks.');textarea.current?.focus();}}>Plan my day</Button><Button variant="outline" onClick={()=>{setText('Create a task to ');textarea.current?.focus();}}>Create a task</Button></div></div>:messages.map(m=><Message key={m.id} from={m.role}><MessageContent>{m.parts.map((p,i)=>{if(p.type==='text')return <MessageResponse key={i}>{p.text}</MessageResponse>;if(p.type==='reasoning')return <details key={i} className="text-xs text-muted-foreground mb-3"><summary>Thinking</summary><p className="mt-2 whitespace-pre-wrap">{p.text}</p></details>;if(isToolUIPart(p))return <Tool key={i} defaultOpen={false}><ToolHeader type={p.type} state={p.state} title="Workflow proposal"/><ToolContent><ToolInput input={p.input}/><ToolOutput output={'output'in p?p.output:undefined} errorText={'errorText'in p?p.errorText:undefined}/>{p.state==='output-available'&&<Button variant="outline" size="sm" asChild><Link to="/workflows">Review proposed workflow</Link></Button>}</ToolContent></Tool>;return null;})}</MessageContent></Message>)}{status==='submitted'&&<Shimmer>FlowPilot is thinking…</Shimmer>}</ConversationContent><ConversationScrollButton/></Conversation>{error&&<div role="alert" className="chat-error">{error.message}</div>}<div className="chat-composer"><PromptInput onSubmit={async({text:submitted})=>{if(busy||!submitted.trim())return;setText('');await sendMessage({text:submitted});textarea.current?.focus();}}><PromptInputTextarea ref={textarea} autoFocus placeholder="What would you like FlowPilot to do?" value={text} onChange={e=>setText(e.target.value)}/><PromptInputFooter><span className="text-[10px] text-muted-foreground flex items-center gap-1.5"><ShieldCheck size={11}/>You approve. FlowPilot acts.</span><PromptInputSubmit status={status} onStop={stop} disabled={!busy&&!text.trim()}>{!busy&&<ArrowUp size={16}/>}</PromptInputSubmit></PromptInputFooter></PromptInput></div></div>;}
+import { useEffect, useRef, useState } from "react";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport, isToolUIPart, type UIMessage } from "ai";
+import { useServerFn } from "@tanstack/react-start";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Plus, Trash2, ShieldCheck, ArrowUp } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import {
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from "@/components/ai-elements/conversation";
+import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
+import {
+  PromptInput,
+  PromptInputTextarea,
+  PromptInputFooter,
+  PromptInputSubmit,
+} from "@/components/ai-elements/prompt-input";
+import {
+  Tool,
+  ToolHeader,
+  ToolContent,
+  ToolInput,
+  ToolOutput,
+} from "@/components/ai-elements/tool";
+import { Shimmer } from "@/components/ai-elements/shimmer";
+import { Shell } from "./shell";
+import { Heading } from "./common";
+import { newConversation, deleteRecord, type Workspace } from "@/lib/flowpilot/data.functions";
+import logo from "@/assets/flowpilot-mark.png";
+import { toast } from "sonner";
+export function ChatPage({
+  threadId,
+  messages,
+  workspace,
+}: {
+  threadId: string;
+  messages: UIMessage[];
+  workspace: Workspace;
+}) {
+  const create = useServerFn(newConversation),
+    remove = useServerFn(deleteRecord);
+  const nav = useNavigate();
+  const qc = useQueryClient();
+  return (
+    <Shell title="AI Assistant">
+      <Heading
+        title="Your AI assistant"
+        subtitle="One place to think it through and get things moving."
+      />
+      <div className="chat-layout">
+        <aside className="thread-list">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={async () => {
+              try {
+                const r = await create();
+                await qc.invalidateQueries({ queryKey: ["workspace"] });
+                nav({ to: "/chat/$threadId", params: { threadId: r.id } });
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Could not create conversation");
+              }
+            }}
+          >
+            <Plus />
+            New conversation
+          </Button>
+          <div>
+            {workspace.conversations.map((t) => (
+              <div key={t.id} className={`thread-row ${t.id === threadId ? "active" : ""}`}>
+                <Link to="/chat/$threadId" params={{ threadId: t.id }} title={t.title}>
+                  {t.title}
+                </Link>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  title="Delete conversation"
+                  aria-label={`Delete ${t.title}`}
+                  onClick={async () => {
+                    if (!window.confirm(`Delete "${t.title}" and its history?`)) return;
+                    try {
+                      await remove({ data: { table: "conversations", id: t.id, confirm: true } });
+                      await qc.invalidateQueries({ queryKey: ["workspace"] });
+                      if (t.id === threadId) nav({ to: "/assistant" });
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : "Could not delete conversation");
+                    }
+                  }}
+                >
+                  <Trash2 size={12} />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </aside>
+        <ChatWindow key={threadId} threadId={threadId} initialMessages={messages} />
+      </div>
+    </Shell>
+  );
+}
+function ChatWindow({
+  threadId,
+  initialMessages,
+}: {
+  threadId: string;
+  initialMessages: UIMessage[];
+}) {
+  const qc = useQueryClient();
+  const [text, setText] = useState("");
+  const textarea = useRef<HTMLTextAreaElement>(null);
+  const started = useRef(false);
+  const [transport] = useState(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/chat",
+        body: { conversationId: threadId },
+        headers: async () => {
+          const { data } = await supabase.auth.getSession();
+          return data.session
+            ? { Authorization: `Bearer ${data.session.access_token}` }
+            : { Authorization: "" };
+        },
+        fetch: async (input, init) => {
+          const r = await fetch(input, init);
+          if (!r.ok) {
+            const body = await r.json().catch(() => null);
+            throw new Error(body?.error || body?.message || `Request failed (${r.status})`);
+          }
+          return r;
+        },
+      }),
+  );
+  const { messages, sendMessage, status, stop, error } = useChat({
+    id: threadId,
+    messages: initialMessages,
+    transport,
+    onFinish: () => {
+      qc.invalidateQueries({ queryKey: ["workspace"] });
+      qc.invalidateQueries({ queryKey: ["conversation", threadId] });
+      textarea.current?.focus();
+    },
+    onError: () => textarea.current?.focus(),
+  });
+  const busy = status === "submitted" || status === "streaming";
+  useEffect(() => {
+    textarea.current?.focus();
+    if (started.current) return;
+    started.current = true;
+    const key = `flowpilot-prompt-${threadId}`;
+    const prompt = sessionStorage.getItem(key);
+    if (prompt && initialMessages.length === 0) {
+      sessionStorage.removeItem(key);
+      sendMessage({ text: prompt });
+    }
+  }, [threadId, sendMessage, initialMessages.length]);
+  useEffect(() => {
+    if (!busy) textarea.current?.focus();
+  }, [busy]);
+  return (
+    <div className="chat-window">
+      <div className="chat-header">
+        <img src={logo} width={23} height={27} alt="" />
+        FlowPilot
+        <span className="ml-auto chip">
+          <ShieldCheck size={12} />
+          Approval-first
+        </span>
+      </div>
+      <Conversation className="chat-transcript">
+        <ConversationContent>
+          {messages.length === 0 ? (
+            <div className="chat-empty">
+              <img src={logo} width={56} height={64} alt="FlowPilot AI" />
+              <h2>What's on your mind?</h2>
+              <p>Let's turn it into a clear next step.</p>
+              <div className="quick-actions">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setText("Help me plan my day using my saved tasks.");
+                    textarea.current?.focus();
+                  }}
+                >
+                  Plan my day
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setText("Create a task to ");
+                    textarea.current?.focus();
+                  }}
+                >
+                  Create a task
+                </Button>
+              </div>
+            </div>
+          ) : (
+            messages.map((m) => (
+              <Message key={m.id} from={m.role}>
+                <MessageContent>
+                  {m.parts.map((p, i) => {
+                    if (p.type === "text")
+                      return <MessageResponse key={i}>{p.text}</MessageResponse>;
+                    if (p.type === "reasoning")
+                      return (
+                        <details key={i} className="text-xs text-muted-foreground mb-3">
+                          <summary>Thinking</summary>
+                          <p className="mt-2 whitespace-pre-wrap">{p.text}</p>
+                        </details>
+                      );
+                    if (isToolUIPart(p))
+                      return (
+                        <Tool key={i} defaultOpen={false}>
+                          {p.type === "dynamic-tool" ? (
+                            <ToolHeader
+                              type={p.type}
+                              toolName={p.toolName}
+                              state={p.state}
+                              title="Workflow proposal"
+                            />
+                          ) : (
+                            <ToolHeader type={p.type} state={p.state} title="Workflow proposal" />
+                          )}
+                          <ToolContent>
+                            <ToolInput input={p.input} />
+                            <ToolOutput
+                              output={"output" in p ? p.output : undefined}
+                              errorText={"errorText" in p ? p.errorText : undefined}
+                            />
+                            {p.state === "output-available" && (
+                              <Button variant="outline" size="sm" asChild>
+                                <Link to="/workflows">Review proposed workflow</Link>
+                              </Button>
+                            )}
+                          </ToolContent>
+                        </Tool>
+                      );
+                    return null;
+                  })}
+                </MessageContent>
+              </Message>
+            ))
+          )}
+          {status === "submitted" && <Shimmer>FlowPilot is thinking…</Shimmer>}
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
+      {error && (
+        <div role="alert" className="chat-error">
+          {error.message}
+        </div>
+      )}
+      <div className="chat-composer">
+        <PromptInput
+          onSubmit={async ({ text: submitted }) => {
+            if (busy || !submitted.trim()) return;
+            setText("");
+            await sendMessage({ text: submitted });
+            textarea.current?.focus();
+          }}
+        >
+          <PromptInputTextarea
+            ref={textarea}
+            autoFocus
+            placeholder="What would you like FlowPilot to do?"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+          <PromptInputFooter>
+            <span className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+              <ShieldCheck size={11} />
+              You approve. FlowPilot acts.
+            </span>
+            <PromptInputSubmit status={status} onStop={stop} disabled={!busy && !text.trim()}>
+              {!busy && <ArrowUp size={16} />}
+            </PromptInputSubmit>
+          </PromptInputFooter>
+        </PromptInput>
+      </div>
+    </div>
+  );
+}

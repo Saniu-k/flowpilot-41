@@ -1,19 +1,386 @@
-import { useState } from 'react';
-import { useSuspenseQuery } from '@tanstack/react-query';
-import { useServerFn } from '@tanstack/react-start';
-import { Link,useNavigate } from '@tanstack/react-router';
-import { ListTodo,Workflow,BookOpen,ShieldCheck,ArrowRight,ArrowUp,Mail,CalendarDays,CheckCircle2,Clock,Plus,Paperclip,MessagesSquare,Sun,ChevronRight } from 'lucide-react';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Shell } from './shell';
-import { Empty,DateLabel } from './common';
-import { TaskEditor } from './task-editor';
-import { useIdentity } from './auth-context';
-import { workspaceQuery } from '@/lib/flowpilot/queries';
-import { newConversation,type Workspace } from '@/lib/flowpilot/data.functions';
-import logo from '@/assets/flowpilot-mark.png';
-export function LiveDashboard(){const {data}=useSuspenseQuery(workspaceQuery());return <Dashboard data={data}/>;}
-export function Dashboard({data}:{data?:Workspace}){const {user}=useIdentity();const [command,setCommand]=useState('');const [editor,setEditor]=useState(false);const [busy,setBusy]=useState(false);const create=useServerFn(newConversation);const navigate=useNavigate();const tasks=data?.tasks.filter(t=>t.status!=='completed')??[];const done=data?.tasks.filter(t=>t.status==='completed').length??0;const approvals=data?.workflows.filter(w=>w.status==='approval_required')??[];const entries=data?.entries.filter(e=>e.kind==='memory')??[];const name=data?.profile?.display_name||user?.user_metadata?.full_name?.split(' ')[0]||'';
-async function start(text:string){if(!user){navigate({to:'/auth'});return;}if(!text.trim()||busy)return;setBusy(true);try{const r=await create();sessionStorage.setItem(`flowpilot-prompt-${r.id}`,text);await navigate({to:'/chat/$threadId',params:{threadId:r.id}});}catch(e){toast.error(e instanceof Error?e.message:'Could not start conversation');}finally{setBusy(false);}}
-return <Shell title="Dashboard"><div className="page-heading"><div><div className="eyebrow flex items-center gap-1.5"><Sun size={13}/> YOUR DAY, IN FOCUS</div><h1>Good to see you{name?`, ${name}`:''} <span className="text-primary">.</span></h1><p>Let's make room for what matters. What would you like to get done?</p></div><DateLabel/></div><section className="assistant-home"><div className="assistant-home-head"><div className="assistant-title"><img src={logo} width={24} height={27} alt=""/>Your personal AI employee</div><span className="chip"><ShieldCheck size={12}/>Approval-first</span></div><form className="command-box" onSubmit={e=>{e.preventDefault();start(command);}}><textarea aria-label="Ask FlowPilot" placeholder="Ask FlowPilot to plan, organize, or take something off your plate…" value={command} onChange={e=>setCommand(e.target.value)}/><div className="command-footer"><span><ShieldCheck size={12}/> You approve. FlowPilot acts.</span><Button size="icon-sm" type="submit" disabled={busy} aria-label="Send to FlowPilot" title="Send to FlowPilot"><ArrowUp size={17}/></Button></div></form><div className="quick-actions"><Button variant="outline" onClick={()=>start('Help me plan my day using my saved tasks.')}><ListTodo size={13}/>Plan my day</Button><Button variant="outline" onClick={()=>start('Summarize my pending tasks and recommend my next steps.')}><Workflow size={13}/>Summarize my tasks</Button><Button variant="outline" onClick={()=>start('Help me create a workflow. Ask me what I want to accomplish.')}><Plus size={13}/>Create a workflow</Button><Button variant="outline" onClick={()=>start('Show me exactly what information is saved in my memory.')}><BookOpen size={13}/>Recall a memory</Button></div></section><div className="stats">{[{label:'Pending tasks',value:tasks.length,icon:ListTodo,tone:'',foot:done?`${done} completed`:'A fresh start to your day'},{label:'Active workflows',value:data?.workflows.filter(w=>w.status!=='paused'&&w.status!=='completed').length??0,icon:Workflow,tone:'info',foot:'Ready when you are'},{label:'Awaiting approval',value:approvals.length,icon:ShieldCheck,tone:'warning',foot:'Your decisions, your control'},{label:'Saved memories',value:entries.length,icon:BookOpen,tone:'violet',foot:'Only what you choose to save'}].map(s=><div className="stat" key={s.label}><div className="stat-top"><span>{s.label}</span><span className={`stat-icon ${s.tone}`}><s.icon/></span></div><div className="stat-value">{s.value.toString().padStart(2,'0')}</div><div className="stat-foot">{s.foot}</div></div>)}</div><div className="dashboard-grid"><div><div className="section-head"><h2 className="section-label"><ListTodo/>Today's tasks <span className="text-xs text-muted-foreground font-normal">{tasks.length}</span></h2><Link to="/tasks">View all<ArrowRight size={12}/></Link></div><div className="panel"><div className="panel-toolbar"><span>Your focus list</span><Button variant="ghost" size="sm" onClick={()=>user?setEditor(true):navigate({to:'/auth'})}><Plus size={13}/>Add task</Button></div>{tasks.length?tasks.slice(0,4).map(t=><div className="task-row" key={t.id}><div className="empty-icon text-muted-foreground"><ListTodo size={16}/></div><div className="task-text"><strong>{t.title}</strong><small>{t.due_at?new Date(t.due_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'No due date'}{t.category?` · ${t.category}`:''}</small></div><span className={`priority ${t.priority}`}>{t.priority}</span></div>):<Empty icon={CheckCircle2} title="A little space for your next big thing" text="No pending tasks yet. Add your first task and take it from there." action={<Button variant="outline" size="sm" onClick={()=>user?setEditor(true):navigate({to:'/auth'})}><Plus/>Create a task</Button>}/>}</div><div className="section-head mt-6"><h2 className="section-label"><Clock/>Recent activity</h2><Link to="/activity">View history<ArrowRight size={12}/></Link></div><div className="panel">{data?.activity.length?data.activity.slice(0,3).map(a=><div className={`activity-row ${a.status}`} key={a.id}><CheckCircle2 size={16}/><div><strong>{a.action}</strong><p>{a.details}</p></div><time>{new Date(a.created_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</time></div>):<Empty icon={HistoryIcon} title="Your progress will show up here" text="Completed actions and workflow results, all in one place."/>}</div></div><div className="right-stack"><section><div className="section-head"><h2 className="section-label"><CalendarDays/>Coming up</h2><Link to="/calendar"><ArrowUp size={13} className="rotate-45"/></Link></div><div className="panel"><Empty icon={CalendarDays} title="Nothing on the horizon yet" text="Your upcoming due dates appear here as you add tasks."/>{tasks.filter(t=>t.due_at).slice(0,2).map(t=><div className="task-row" key={t.id}><CalendarDays size={16} className="text-info"/><div className="task-text"><strong>{t.title}</strong><small>{new Date(t.due_at??'').toLocaleString()}</small></div></div>)}</div></section><section><div className="section-head"><h2 className="section-label"><PlugIcon/>Connected apps</h2><Link to="/integrations">Manage<ArrowRight size={12}/></Link></div><div className="panel"><div className="connection-row"><div className="app-icon mail"><Mail size={18}/></div><div><strong>Gmail</strong><small>Email & communication</small></div><span className="chip">Not connected</span></div><div className="connection-row"><div className="app-icon"><CalendarDays size={18}/></div><div><strong>Google Calendar</strong><small>Events & scheduling</small></div><span className="chip">Not connected</span></div></div></section><Link to="/workflows" className="flex items-center gap-3 border border-border rounded-md bg-card px-4 py-4"><div className="stat-icon warning"><ShieldCheck size={16}/></div><div className="flex-1"><strong className="text-xs font-medium">Pending approvals</strong><p className="text-[10px] text-muted-foreground mt-1">{approvals.length?`${approvals.length} workflow${approvals.length===1?'':'s'} waiting for you`:'All clear. Nothing needs your review.'}</p></div><ChevronRight size={15} className="text-muted-foreground"/></Link></div></div><div className="bottom-note"><ShieldCheck size={12}/>Private by design. Nothing consequential happens without your approval.</div>{editor&&<TaskEditor open onClose={()=>setEditor(false)}/>}</Shell>;}
-import { History as HistoryIcon,Plug as PlugIcon } from 'lucide-react';
+import { useState } from "react";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { Link, useNavigate } from "@tanstack/react-router";
+import {
+  ListTodo,
+  Workflow,
+  BookOpen,
+  ShieldCheck,
+  ArrowRight,
+  ArrowUp,
+  Mail,
+  CalendarDays,
+  CheckCircle2,
+  Clock,
+  Plus,
+  Paperclip,
+  MessagesSquare,
+  Sun,
+  ChevronRight,
+} from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Shell } from "./shell";
+import { Empty, DateLabel } from "./common";
+import { TaskEditor } from "./task-editor";
+import { useIdentity } from "./auth-context";
+import { workspaceQuery } from "@/lib/flowpilot/queries";
+import { newConversation, type Workspace } from "@/lib/flowpilot/data.functions";
+import logo from "@/assets/flowpilot-mark.png";
+export function LiveDashboard() {
+  const { data } = useSuspenseQuery(workspaceQuery());
+  return <Dashboard data={data} />;
+}
+export function Dashboard({ data }: { data?: Workspace }) {
+  const { user } = useIdentity();
+  const [command, setCommand] = useState("");
+  const [editor, setEditor] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const create = useServerFn(newConversation);
+  const navigate = useNavigate();
+  const tasks = data?.tasks.filter((t) => t.status !== "completed") ?? [];
+  const done = data?.tasks.filter((t) => t.status === "completed").length ?? 0;
+  const approvals = data?.workflows.filter((w) => w.status === "approval_required") ?? [];
+  const entries = data?.entries.filter((e) => e.kind === "memory") ?? [];
+  const name =
+    data?.profile?.display_name || user?.user_metadata?.["full_name"]?.split(" ")[0] || "";
+  async function start(text: string) {
+    if (!user) {
+      navigate({ to: "/auth" });
+      return;
+    }
+    if (!text.trim() || busy) return;
+    setBusy(true);
+    try {
+      const r = await create();
+      sessionStorage.setItem(`flowpilot-prompt-${r.id}`, text);
+      await navigate({ to: "/chat/$threadId", params: { threadId: r.id } });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not start conversation");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Shell title="Dashboard">
+      <div className="page-heading">
+        <div>
+          <div className="eyebrow flex items-center gap-1.5">
+            <Sun size={13} /> YOUR DAY, IN FOCUS
+          </div>
+          <h1>
+            Good to see you{name ? `, ${name}` : ""} <span className="text-primary">.</span>
+          </h1>
+          <p>Let's make room for what matters. What would you like to get done?</p>
+        </div>
+        <DateLabel />
+      </div>
+      <section className="assistant-home">
+        <div className="assistant-home-head">
+          <div className="assistant-title">
+            <img src={logo} width={24} height={27} alt="" />
+            Your personal AI employee
+          </div>
+          <span className="chip">
+            <ShieldCheck size={12} />
+            Approval-first
+          </span>
+        </div>
+        <form
+          className="command-box"
+          onSubmit={(e) => {
+            e.preventDefault();
+            start(command);
+          }}
+        >
+          <textarea
+            aria-label="Ask FlowPilot"
+            placeholder="Ask FlowPilot to plan, organize, or take something off your plate…"
+            value={command}
+            onChange={(e) => setCommand(e.target.value)}
+          />
+          <div className="command-footer">
+            <span>
+              <ShieldCheck size={12} /> You approve. FlowPilot acts.
+            </span>
+            <Button
+              size="icon-sm"
+              type="submit"
+              disabled={busy}
+              aria-label="Send to FlowPilot"
+              title="Send to FlowPilot"
+            >
+              <ArrowUp size={17} />
+            </Button>
+          </div>
+        </form>
+        <div className="quick-actions">
+          <Button
+            variant="outline"
+            onClick={() => start("Help me plan my day using my saved tasks.")}
+          >
+            <ListTodo size={13} />
+            Plan my day
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => start("Summarize my pending tasks and recommend my next steps.")}
+          >
+            <Workflow size={13} />
+            Summarize my tasks
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => start("Help me create a workflow. Ask me what I want to accomplish.")}
+          >
+            <Plus size={13} />
+            Create a workflow
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => start("Show me exactly what information is saved in my memory.")}
+          >
+            <BookOpen size={13} />
+            Recall a memory
+          </Button>
+        </div>
+      </section>
+      <div className="stats">
+        {[
+          {
+            label: "Pending tasks",
+            value: tasks.length,
+            icon: ListTodo,
+            tone: "",
+            foot: done ? `${done} completed` : "A fresh start to your day",
+          },
+          {
+            label: "Active workflows",
+            value:
+              data?.workflows.filter((w) => w.status !== "paused" && w.status !== "completed")
+                .length ?? 0,
+            icon: Workflow,
+            tone: "info",
+            foot: "Ready when you are",
+          },
+          {
+            label: "Awaiting approval",
+            value: approvals.length,
+            icon: ShieldCheck,
+            tone: "warning",
+            foot: "Your decisions, your control",
+          },
+          {
+            label: "Saved memories",
+            value: entries.length,
+            icon: BookOpen,
+            tone: "violet",
+            foot: "Only what you choose to save",
+          },
+        ].map((s) => (
+          <div className="stat" key={s.label}>
+            <div className="stat-top">
+              <span>{s.label}</span>
+              <span className={`stat-icon ${s.tone}`}>
+                <s.icon />
+              </span>
+            </div>
+            <div className="stat-value">{s.value.toString().padStart(2, "0")}</div>
+            <div className="stat-foot">{s.foot}</div>
+          </div>
+        ))}
+      </div>
+      <div className="dashboard-grid">
+        <div>
+          <div className="section-head">
+            <h2 className="section-label">
+              <ListTodo />
+              Today's tasks{" "}
+              <span className="text-xs text-muted-foreground font-normal">{tasks.length}</span>
+            </h2>
+            <Link to="/tasks">
+              View all
+              <ArrowRight size={12} />
+            </Link>
+          </div>
+          <div className="panel">
+            <div className="panel-toolbar">
+              <span>Your focus list</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => (user ? setEditor(true) : navigate({ to: "/auth" }))}
+              >
+                <Plus size={13} />
+                Add task
+              </Button>
+            </div>
+            {tasks.length ? (
+              tasks.slice(0, 4).map((t) => (
+                <div className="task-row" key={t.id}>
+                  <div className="empty-icon text-muted-foreground">
+                    <ListTodo size={16} />
+                  </div>
+                  <div className="task-text">
+                    <strong>{t.title}</strong>
+                    <small>
+                      {t.due_at
+                        ? new Date(t.due_at).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                          })
+                        : "No due date"}
+                      {t.category ? ` · ${t.category}` : ""}
+                    </small>
+                  </div>
+                  <span className={`priority ${t.priority}`}>{t.priority}</span>
+                </div>
+              ))
+            ) : (
+              <Empty
+                icon={CheckCircle2}
+                title="A little space for your next big thing"
+                text="No pending tasks yet. Add your first task and take it from there."
+                action={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => (user ? setEditor(true) : navigate({ to: "/auth" }))}
+                  >
+                    <Plus />
+                    Create a task
+                  </Button>
+                }
+              />
+            )}
+          </div>
+          <div className="section-head mt-6">
+            <h2 className="section-label">
+              <Clock />
+              Recent activity
+            </h2>
+            <Link to="/activity">
+              View history
+              <ArrowRight size={12} />
+            </Link>
+          </div>
+          <div className="panel">
+            {data?.activity.length ? (
+              data.activity.slice(0, 3).map((a) => (
+                <div className={`activity-row ${a.status}`} key={a.id}>
+                  <CheckCircle2 size={16} />
+                  <div>
+                    <strong>{a.action}</strong>
+                    <p>{a.details}</p>
+                  </div>
+                  <time>
+                    {new Date(a.created_at).toLocaleTimeString("en-US", {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </time>
+                </div>
+              ))
+            ) : (
+              <Empty
+                icon={HistoryIcon}
+                title="Your progress will show up here"
+                text="Completed actions and workflow results, all in one place."
+              />
+            )}
+          </div>
+        </div>
+        <div className="right-stack">
+          <section>
+            <div className="section-head">
+              <h2 className="section-label">
+                <CalendarDays />
+                Coming up
+              </h2>
+              <Link to="/calendar">
+                <ArrowUp size={13} className="rotate-45" />
+              </Link>
+            </div>
+            <div className="panel">
+              <Empty
+                icon={CalendarDays}
+                title="Nothing on the horizon yet"
+                text="Your upcoming due dates appear here as you add tasks."
+              />
+              {tasks
+                .filter((t) => t.due_at)
+                .slice(0, 2)
+                .map((t) => (
+                  <div className="task-row" key={t.id}>
+                    <CalendarDays size={16} className="text-info" />
+                    <div className="task-text">
+                      <strong>{t.title}</strong>
+                      <small>{new Date(t.due_at ?? "").toLocaleString()}</small>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </section>
+          <section>
+            <div className="section-head">
+              <h2 className="section-label">
+                <PlugIcon />
+                Connected apps
+              </h2>
+              <Link to="/integrations">
+                Manage
+                <ArrowRight size={12} />
+              </Link>
+            </div>
+            <div className="panel">
+              <div className="connection-row">
+                <div className="app-icon mail">
+                  <Mail size={18} />
+                </div>
+                <div>
+                  <strong>Gmail</strong>
+                  <small>Email & communication</small>
+                </div>
+                <span className="chip">Not connected</span>
+              </div>
+              <div className="connection-row">
+                <div className="app-icon">
+                  <CalendarDays size={18} />
+                </div>
+                <div>
+                  <strong>Google Calendar</strong>
+                  <small>Events & scheduling</small>
+                </div>
+                <span className="chip">Not connected</span>
+              </div>
+            </div>
+          </section>
+          <Link
+            to="/workflows"
+            className="flex items-center gap-3 border border-border rounded-md bg-card px-4 py-4"
+          >
+            <div className="stat-icon warning">
+              <ShieldCheck size={16} />
+            </div>
+            <div className="flex-1">
+              <strong className="text-xs font-medium">Pending approvals</strong>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {approvals.length
+                  ? `${approvals.length} workflow${approvals.length === 1 ? "" : "s"} waiting for you`
+                  : "All clear. Nothing needs your review."}
+              </p>
+            </div>
+            <ChevronRight size={15} className="text-muted-foreground" />
+          </Link>
+        </div>
+      </div>
+      <div className="bottom-note">
+        <ShieldCheck size={12} />
+        Private by design. Nothing consequential happens without your approval.
+      </div>
+      {editor && <TaskEditor open onClose={() => setEditor(false)} />}
+    </Shell>
+  );
+}
+import { History as HistoryIcon, Plug as PlugIcon } from "lucide-react";
